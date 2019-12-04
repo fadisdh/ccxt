@@ -13,8 +13,8 @@ module.exports = class bitoasis extends Exchange {
         return this.deepExtend (super.describe (), {
             'id': 'bitoasis',
             'name': 'BitOasis',
-            'countries': [ 'AE', 'SA', 'KW', 'BH', 'OM', 'JO', 'EG', 'MA' ], // United Arab Emirates, Saudi Arabia, Kuwait, Bahrain, Oman, Jordan. Egypt, Morocco
-            'rateLimit': 500, // TODO: CHECK
+            'countries': [ 'AE', 'SA', 'KW', 'BH', 'OM', 'JO', 'EG', 'MA' ], // United Arab Emirates, Saudi Arabia, Kuwait, Bahrain, Oman, Jordan, Egypt and Morocco
+            'rateLimit': 500,
             'certified': false,
             'has': {
                 'cancelOrder': true,
@@ -51,7 +51,7 @@ module.exports = class bitoasis extends Exchange {
                     'v1': 'https://api.bitoasis.net/v1',
                 },
                 'www': 'https://bitoasis.net',
-                'referral': 'https://www.binance.com/?ref=10205187', // TODO: do we need this
+                'referral': 'https://bitoasis.net',
                 'doc': [
                     'https://bitoasis.docs.apiary.io',
                 ],
@@ -120,11 +120,8 @@ module.exports = class bitoasis extends Exchange {
             const symbol = pairInfo['symbol'];
             const pricePrecision = this.safeString (market, 'price_precision');
             const precision = {
-                // TODO: amount precision
-                // 'amount': market['baseAssetPrecision'],
                 'price': pricePrecision,
             };
-            // TODO: Active
             const active = true;
             const minOrderSize = this.safeFloat (market, 'mimimum_order_size');
             const maxOrderSize = this.safeFloat (market, 'maximum_order_size');
@@ -169,8 +166,7 @@ module.exports = class bitoasis extends Exchange {
             const code = this.safeCurrencyCode (currencyId);
             const account = this.account ();
             const balance = balances[currencyId];
-            // TODO: do we need the balance free and used attributes
-            account['total'] = balance;
+            account['free'] = balance;
             result[code] = account;
         }
         return this.parseBalance (result);
@@ -299,7 +295,7 @@ module.exports = class bitoasis extends Exchange {
 
     parseOrderStatus (status) {
         const statuses = {
-            'OPRN': 'open',
+            'OPEN': 'open',
             'DONE': 'closed',
             'CANCELED': 'canceled',
         };
@@ -360,10 +356,10 @@ module.exports = class bitoasis extends Exchange {
         };
     }
 
-    parseOrders (orders) {
+    parseOrders (orders, market = undefined, since = undefined, limit = undefined, params = {}) {
         const results = [];
         for (let i = 0; i < orders.length; i++) {
-            results.push (this.parseOrder (orders[i]));
+            results.push (this.parseOrder (orders[i], market));
         }
         return results;
     }
@@ -441,7 +437,7 @@ module.exports = class bitoasis extends Exchange {
             response = await this.privateGetExchangeOrdersPair (this.extend (request, params));
         }
         const ordersData = this.safeValue (response, 'orders');
-        return this.parseOrders (ordersData, since, limit);
+        return this.parseOrders (ordersData, undefined, since, limit);
     }
 
     fetchOpenOrders (symbol = undefined, since = undefined, limit = undefined, params = {}) {
@@ -729,7 +725,7 @@ module.exports = class bitoasis extends Exchange {
         };
     }
 
-    sign (path, api = 'public', method = 'GET', params = {}, headers = {}, body = undefined) {
+    sign (path, api = 'public', method = 'GET', params = {}, headers = undefined, body = undefined) {
         let url = this.urls['api'][api];
         url += '/' + path;
         if (api === 'private') {
@@ -737,12 +733,15 @@ module.exports = class bitoasis extends Exchange {
                 // TODO: update this message url
                 throw new ExchangeError ('You have to set the token value, you can generate a token from https://bitoasis.net/settings/api');
             }
+            if (headers === undefined) {
+                headers = {};
+            }
             headers = this.extend (headers, { 'Authorization': 'Bearer ' + this.token });
         }
         return { 'url': url, 'method': method, 'body': body, 'headers': headers };
     }
 
-    async request (path, api = 'public', method = 'GET', params = {}, headers = {}, body = undefined) {
+    async request (path, api = 'public', method = 'GET', params = {}, headers = undefined, body = undefined) {
         const pair = this.safeString (params, 'pair');
         if (pair) {
             path = path.replace ('{pair}', pair);
@@ -754,6 +753,9 @@ module.exports = class bitoasis extends Exchange {
         const id = this.safeString (params, 'id');
         if (id) {
             path = path.replace ('{id}', id);
+        }
+        if (headers === undefined) {
+            headers = {};
         }
         headers = this.extend (headers, { 'Content-Type': 'application/json' });
         if (method === 'GET') {
